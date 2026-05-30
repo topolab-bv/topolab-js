@@ -19,14 +19,14 @@ describe("dataset", () => {
 
   it("items resolves slug->uuid once and serializes bbox", async () => {
     let mdCalls = 0;
-    let bboxSeen = "";
+    const bboxSeen: (string | null)[] = [];
     server.use(
       http.get(`${BASE}/v1/dataset/nl-domino-poi`, () => {
         mdCalls++;
         return HttpResponse.json(fx("metadata.json"));
       }),
       http.get(`${BASE}/v1/ogc/collections/${COLL}/items`, ({ request }) => {
-        bboxSeen = new URL(request.url).searchParams.get("bbox") ?? "";
+        bboxSeen.push(new URL(request.url).searchParams.get("bbox"));
         return HttpResponse.json(fx("items.json"));
       }),
     );
@@ -34,8 +34,9 @@ describe("dataset", () => {
     const fc = await ds.items({ limit: 100, bbox: [4.7, 52.2, 5.1, 52.5] });
     await ds.items({ limit: 10 });
     expect(fc.type).toBe("FeatureCollection");
-    expect(mdCalls).toBe(1);
-    expect(bboxSeen).toBe("4.7,52.2,5.1,52.5");
+    expect(mdCalls).toBe(1); // slug->uuid resolved once, then cached
+    expect(bboxSeen[0]).toBe("4.7,52.2,5.1,52.5"); // first call serialized bbox
+    expect(bboxSeen[1]).toBeNull(); // second call had no bbox
   });
 
   it("toGeoJSON addon error", async () => {
