@@ -19,6 +19,8 @@
 
 ---
 
+📖 **Docs:** [topolab-bv.github.io/topolab-js](https://topolab-bv.github.io/topolab-js/) · full platform docs at [docs.topolab.nl](https://docs.topolab.nl)
+
 ## Install
 
 ```bash
