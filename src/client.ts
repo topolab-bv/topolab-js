@@ -3,7 +3,37 @@ import { Dataset } from "./dataset";
 import { ConfigurationError } from "./errors";
 import type { ClientOptions, DatasetPage, ListQuery } from "./types";
 
-const DEFAULT_BASE_URL = "https://api.topolab.nl";
+// Named API environments. Production is the shipped default; staging is one
+// keyword away. Self-hosting / tests can still pass an explicit baseUrl.
+export const ENVIRONMENTS = {
+  production: "https://api.topolab.nl",
+  staging: "https://api-staging.topolab.nl",
+} as const;
+export type Environment = keyof typeof ENVIRONMENTS;
+const DEFAULT_BASE_URL = ENVIRONMENTS.production;
+
+function environmentUrl(name: string): string {
+  const url = (ENVIRONMENTS as Record<string, string>)[name.toLowerCase()];
+  if (!url) {
+    throw new ConfigurationError(
+      `Unknown environment "${name}". Use one of ${Object.keys(ENVIRONMENTS).join(", ")}.`,
+    );
+  }
+  return url;
+}
+
+/** Resolve the API base URL. Precedence (most specific first):
+ *  explicit baseUrl > environment opt > TOPOLAB_BASE_URL > TOPOLAB_ENV > production. */
+function resolveBaseUrl(
+  opts: { baseUrl?: string; environment?: string },
+  env: NodeJS.ProcessEnv | undefined,
+): string {
+  if (opts.baseUrl) return opts.baseUrl.replace(/\/$/, "");
+  if (opts.environment) return environmentUrl(opts.environment);
+  if (env?.TOPOLAB_BASE_URL) return env.TOPOLAB_BASE_URL.replace(/\/$/, "");
+  if (env?.TOPOLAB_ENV) return environmentUrl(env.TOPOLAB_ENV);
+  return DEFAULT_BASE_URL;
+}
 
 function clean(q: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(q).filter(([, v]) => v != null));
@@ -20,7 +50,7 @@ export class Client {
     const key = opts.apiKey ?? env?.TOPOLAB_API_KEY;
     if (!key) throw new ConfigurationError("No API key. Pass apiKey or set TOPOLAB_API_KEY.");
     this.apiKey = key;
-    this.baseUrl = opts.baseUrl ?? env?.TOPOLAB_BASE_URL ?? DEFAULT_BASE_URL;
+    this.baseUrl = resolveBaseUrl(opts, env);
     this.t = new Transport({
       apiKey: key,
       baseUrl: this.baseUrl,

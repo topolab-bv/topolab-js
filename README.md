@@ -47,6 +47,19 @@ Pass `apiKey` or set `TOPOLAB_API_KEY` (avoid embedding keys in client bundles):
 const tl = new Client({ apiKey: process.env.TOPOLAB_API_KEY });
 ```
 
+## Staging vs production
+
+The client targets **production** (`https://api.topolab.nl`) by default. Point it
+at staging with the `environment` option:
+
+```ts
+const tl = new Client({ apiKey: "tlb_staging_...", environment: "staging" }); // https://api-staging.topolab.nl
+```
+
+Or set `TOPOLAB_ENV=staging`. An explicit `baseUrl` always wins (self-hosting /
+tests). Precedence: `baseUrl` → `environment` → `TOPOLAB_BASE_URL` →
+`TOPOLAB_ENV` → production.
+
 ## What you can do
 
 ### Browse the catalog

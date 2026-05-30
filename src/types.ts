@@ -41,6 +41,8 @@ export interface ListQuery {
 export interface ClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  /** Named API environment: "production" (default) or "staging". */
+  environment?: "production" | "staging";
   timeout?: number;
   maxRetries?: number;
   userAgent?: string;

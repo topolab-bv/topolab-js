@@ -30,4 +30,31 @@ describe("client", () => {
   it("throws without key", () => {
     expect(() => new Client({ baseUrl: BASE })).toThrow(ConfigurationError);
   });
+  it("defaults to the production environment", () => {
+    delete process.env.TOPOLAB_BASE_URL;
+    delete process.env.TOPOLAB_ENV;
+    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api.topolab.nl");
+  });
+  it("selects staging via the environment option", () => {
+    delete process.env.TOPOLAB_BASE_URL;
+    delete process.env.TOPOLAB_ENV;
+    expect(new Client({ apiKey: "k", environment: "staging" }).baseUrl).toBe(
+      "https://api-staging.topolab.nl",
+    );
+  });
+  it("throws on an unknown environment", () => {
+    expect(() => new Client({ apiKey: "k", environment: "dev" as never })).toThrow(ConfigurationError);
+  });
+  it("reads TOPOLAB_ENV from the environment", () => {
+    delete process.env.TOPOLAB_BASE_URL;
+    process.env.TOPOLAB_ENV = "staging";
+    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api-staging.topolab.nl");
+    delete process.env.TOPOLAB_ENV;
+  });
+  it("explicit baseUrl beats environment", () => {
+    delete process.env.TOPOLAB_BASE_URL;
+    delete process.env.TOPOLAB_ENV;
+    const c = new Client({ apiKey: "k", baseUrl: "https://self.example/api", environment: "staging" });
+    expect(c.baseUrl).toBe("https://self.example/api");
+  });
 });

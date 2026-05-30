@@ -1,4 +1,5 @@
-export { Client } from "./client";
+export { Client, ENVIRONMENTS } from "./client";
+export type { Environment } from "./client";
 export { Dataset } from "./dataset";
 export * from "./errors";
 export type {
