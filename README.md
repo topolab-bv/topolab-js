@@ -1,14 +1,36 @@
-# @topolab/sdk
+<p align="center">
+  <img src="assets/banner.svg" alt="@topolab/sdk — the TypeScript client for the Topolab geospatial data API" width="100%">
+</p>
 
-Official TypeScript client for the [Topolab](https://topolab.nl) dataset and geospatial API. Works in Node 18+ and modern browsers / edge runtimes.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/v/@topolab/sdk?color=0E7C7B&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/types/@topolab/sdk?color=0E7C7B" alt="TypeScript types"></a>
+  <a href="https://github.com/topolab/topolab-js/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/topolab/topolab-js/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <a href="https://docs.topolab.nl"><img src="https://img.shields.io/badge/docs-topolab.nl-0E7C7B" alt="Documentation"></a>
+</p>
+
+<h1 align="center">@topolab/sdk</h1>
+
+<p align="center">
+  The official <b>TypeScript</b> client for the <a href="https://topolab.nl">Topolab</a> dataset and geospatial API.<br>
+  Lightweight, GeoJSON-first, runs in Node and the browser.
+</p>
+
+---
+
+## Install
 
 ```bash
 npm install @topolab/sdk
 ```
 
+Ships ES modules + CommonJS and TypeScript types. Uses the platform `fetch`, so
+Node 18+ or any modern browser / edge runtime works with no polyfill.
+
 ## Quickstart
 
-```javascript
+```ts
 // Page Domino's locations within an Amsterdam bounding box
 import { Client } from "@topolab/sdk";
 
@@ -17,22 +39,44 @@ const fc = await tl.dataset("nl-domino-poi").items({ limit: 100, bbox: [4.7, 52.
 console.log(`${fc.features.length} locations`);
 ```
 
-The key carries your scope and addons — OGC feature access needs `GIS_ACCESS`,
+Your API key carries your scope and add-ons — spatial queries need `GIS_ACCESS`,
 downloads need `API_ACCESS`, and data routes require an organization-scoped key.
-Pass `apiKey` or set `TOPOLAB_API_KEY`.
+Pass `apiKey` or set `TOPOLAB_API_KEY` (avoid embedding keys in client bundles):
 
-## Browsing & paging
+```ts
+const tl = new Client({ apiKey: process.env.TOPOLAB_API_KEY });
+```
 
-```javascript
+## What you can do
+
+### Browse the catalog
+
+```ts
 const page = await tl.datasets.list({ country: "NL", limit: 10 });
+```
+
+### Query features in an area (spatial, paged)
+
+```ts
+const fc = await tl.dataset("nl-domino-poi").items({ limit: 100, bbox: [4.7, 52.2, 5.1, 52.5] });
+
+// or stream every feature, paging transparently:
 for await (const feature of tl.dataset("nl-domino-poi").iterItems({ pageSize: 500 })) {
-  // streams every feature, paging transparently
+  // ...
 }
 ```
 
-## Streaming a dataset to disk (Node only)
+The async iterator cancels the in-flight request if you `break` early.
 
-```javascript
+### Pull a whole dataset (bulk)
+
+```ts
+const fc = await tl.dataset("nl-domino-poi").toGeoJSON();   // FeatureCollection
+```
+
+### Stream a dataset to disk (Node only)
+
+```ts
 import { Client } from "@topolab/sdk";
 import { download } from "@topolab/sdk/node";
 
@@ -40,13 +84,45 @@ const tl = new Client();
 await download(tl.dataset("nl-domino-poi"), "dominos-nl.geojson", { format: "geojson" });
 ```
 
-`download` lives in the `/node` subpath because it writes to the filesystem; the
-core entry point stays browser-safe.
+`download` lives in the `@topolab/sdk/node` subpath because it writes to the
+filesystem — the core entry point stays browser-safe.
 
 ## Errors
 
-All failures throw a subclass of `TopolabError` (`AuthenticationError`,
-`AddonRequiredError`, `AccessDeniedError`, `InsufficientCreditsError`,
-`RateLimitError`, …). `AddonRequiredError.addon` names the missing addon.
+Every failure throws a subclass of `TopolabError`, so you never parse raw JSON:
 
-MIT licensed.
+| Error | When |
+|---|---|
+| `AuthenticationError` | missing or invalid API key (401) |
+| `AddonRequiredError` | key lacks the add-on — `.addon` names it (403) |
+| `AccessDeniedError` | dataset not accessible to your organization (403) |
+| `InsufficientCreditsError` | not enough credits — `.required` / `.available` (402) |
+| `NotFoundError` | unknown dataset (404) |
+| `RateLimitError` | rate limited — `.retryAfter`, retried automatically (429) |
+
+```ts
+import { Client, AddonRequiredError } from "@topolab/sdk";
+
+try {
+  await tl.dataset("nl-domino-poi").toGeoJSON();
+} catch (e) {
+  if (e instanceof AddonRequiredError) console.log("Your key needs:", e.addon);
+}
+```
+
+## Documentation
+
+- **Full docs:** [docs.topolab.nl](https://docs.topolab.nl)
+- The bulk vs. spatial access patterns, credits, and add-ons are described in the
+  [SDK conventions](https://docs.topolab.nl) and the
+  [`topolab-sdk-spec`](../topolab-sdk-spec) repository.
+- A runnable example lives in [`examples/quickstart.ts`](examples/quickstart.ts).
+
+## Contributing
+
+Issues and pull requests are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Run `npm test`, type-check with `npm run typecheck`, build with `npm run build`.
+
+## License
+
+[MIT](LICENSE) © Topolab B.V.
