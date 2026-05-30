@@ -5,11 +5,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { path: topolab-js }
+        with:
+          path: topolab-js
       - uses: actions/checkout@v4
-        with: { repository: topolab-bv/topolab-sdk-spec, path: topolab-sdk-spec }
+        with:
+          repository: topolab-bv/topolab-sdk-spec
+          path: topolab-sdk-spec
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with:
+          node-version: "20"
       - working-directory: topolab-js
         run: npm ci || npm install
       - working-directory: topolab-js
