@@ -16,10 +16,11 @@ export class Client {
   readonly datasets: { list: (q?: ListQuery) => Promise<DatasetPage> };
 
   constructor(opts: ClientOptions = {}) {
-    const key = opts.apiKey ?? (typeof process !== "undefined" ? process.env?.TOPOLAB_API_KEY : undefined);
+    const env = typeof process !== "undefined" ? process.env : undefined;
+    const key = opts.apiKey ?? env?.TOPOLAB_API_KEY;
     if (!key) throw new ConfigurationError("No API key. Pass apiKey or set TOPOLAB_API_KEY.");
     this.apiKey = key;
-    this.baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
+    this.baseUrl = opts.baseUrl ?? env?.TOPOLAB_BASE_URL ?? DEFAULT_BASE_URL;
     this.t = new Transport({
       apiKey: key,
       baseUrl: this.baseUrl,

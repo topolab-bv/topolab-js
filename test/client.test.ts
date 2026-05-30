@@ -22,6 +22,11 @@ describe("client", () => {
     expect(new Client({ baseUrl: BASE }).apiKey).toBe("envkey");
     delete process.env.TOPOLAB_API_KEY;
   });
+  it("reads base url from TOPOLAB_BASE_URL env", () => {
+    process.env.TOPOLAB_BASE_URL = "https://api-staging.topolab.nl";
+    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api-staging.topolab.nl");
+    delete process.env.TOPOLAB_BASE_URL;
+  });
   it("throws without key", () => {
     expect(() => new Client({ baseUrl: BASE })).toThrow(ConfigurationError);
   });
