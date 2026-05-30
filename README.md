@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="@topolab/sdk — the TypeScript client for the Topolab geospatial data API" width="100%">
+  <img src="assets/topolab-logo.png" alt="Topolab" width="320">
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/v/@topolab/sdk?color=0E7C7B&label=npm" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/types/@topolab/sdk?color=0E7C7B" alt="TypeScript types"></a>
+  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/v/@topolab/sdk?color=1E3A8A&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@topolab/sdk"><img src="https://img.shields.io/npm/types/@topolab/sdk?color=1E3A8A" alt="TypeScript types"></a>
   <a href="https://github.com/topolab/topolab-js/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/topolab/topolab-js/ci.yml?branch=main&label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <a href="https://docs.topolab.nl"><img src="https://img.shields.io/badge/docs-topolab.nl-0E7C7B" alt="Documentation"></a>
+  <a href="https://docs.topolab.nl"><img src="https://img.shields.io/badge/docs-topolab.nl-1E3A8A" alt="Documentation"></a>
 </p>
 
 <h1 align="center">@topolab/sdk</h1>
