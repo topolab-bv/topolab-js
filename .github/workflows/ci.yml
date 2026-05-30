@@ -1,0 +1,20 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: topolab-js }
+      - uses: actions/checkout@v4
+        with: { repository: topolab/topolab-sdk-spec, path: topolab-sdk-spec }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - working-directory: topolab-js
+        run: npm ci || npm install
+      - working-directory: topolab-js
+        run: npm run typecheck
+      - working-directory: topolab-js
+        run: npm test
+      - working-directory: topolab-js
+        run: npm run build
