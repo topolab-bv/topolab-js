@@ -22,15 +22,40 @@ function environmentUrl(name: string): string {
   return url;
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/** Reject base URLs that could exfiltrate the API key to an attacker-controlled
+ *  host: require https (http only for loopback), and forbid embedded credentials. */
+function validateBaseUrl(raw: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new ConfigurationError(`baseUrl is not a valid URL: ${raw}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new ConfigurationError(`baseUrl must use http(s); got ${raw}`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new ConfigurationError("baseUrl must not contain credentials (userinfo)");
+  }
+  if (parsed.protocol === "http:" && !LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new ConfigurationError(`baseUrl must use https for non-loopback host ${parsed.hostname}`);
+  }
+  return raw.replace(/\/$/, "");
+}
+
 /** Resolve the API base URL. Precedence (most specific first):
- *  explicit baseUrl > environment opt > TOPOLAB_BASE_URL > TOPOLAB_ENV > production. */
+ *  explicit baseUrl > environment opt > TOPOLAB_BASE_URL > TOPOLAB_ENV > production.
+ *  User-supplied URLs (baseUrl, TOPOLAB_BASE_URL) are validated; the named
+ *  environments and the production default are trusted https constants. */
 function resolveBaseUrl(
   opts: { baseUrl?: string; environment?: string },
   env: NodeJS.ProcessEnv | undefined,
 ): string {
-  if (opts.baseUrl) return opts.baseUrl.replace(/\/$/, "");
+  if (opts.baseUrl) return validateBaseUrl(opts.baseUrl);
   if (opts.environment) return environmentUrl(opts.environment);
-  if (env?.TOPOLAB_BASE_URL) return env.TOPOLAB_BASE_URL.replace(/\/$/, "");
+  if (env?.TOPOLAB_BASE_URL) return validateBaseUrl(env.TOPOLAB_BASE_URL);
   if (env?.TOPOLAB_ENV) return environmentUrl(env.TOPOLAB_ENV);
   return DEFAULT_BASE_URL;
 }

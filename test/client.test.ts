@@ -57,4 +57,21 @@ describe("client", () => {
     const c = new Client({ apiKey: "k", baseUrl: "https://self.example/api", environment: "staging" });
     expect(c.baseUrl).toBe("https://self.example/api");
   });
+  it("rejects plain-http remote baseUrl", () => {
+    expect(() => new Client({ apiKey: "k", baseUrl: "http://evil.example/api" })).toThrow(ConfigurationError);
+  });
+  it("rejects baseUrl with embedded credentials", () => {
+    expect(() => new Client({ apiKey: "k", baseUrl: "https://user:pass@evil.example" })).toThrow(ConfigurationError);
+  });
+  it("rejects a non-http(s) scheme", () => {
+    expect(() => new Client({ apiKey: "k", baseUrl: "ftp://api.topolab.nl" })).toThrow(ConfigurationError);
+  });
+  it("allows plain-http loopback (for local dev/tests)", () => {
+    expect(new Client({ apiKey: "k", baseUrl: "http://127.0.0.1:8080" }).baseUrl).toBe("http://127.0.0.1:8080");
+  });
+  it("validates TOPOLAB_BASE_URL from env", () => {
+    process.env.TOPOLAB_BASE_URL = "http://evil.example";
+    expect(() => new Client({ apiKey: "k" })).toThrow(ConfigurationError);
+    delete process.env.TOPOLAB_BASE_URL;
+  });
 });
