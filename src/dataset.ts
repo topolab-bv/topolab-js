@@ -14,7 +14,6 @@ function itemsParams(q: ItemsQuery): Record<string, unknown> {
 }
 
 export class Dataset {
-  private collectionId?: string;
   constructor(readonly t: Transport, public readonly slug: string) {}
 
   metadata(locale?: string): Promise<DatasetSummary> {
@@ -31,14 +30,11 @@ export class Dataset {
     return format === "json" || format === "geojson" ? resp.json() : resp.text();
   }
 
-  private async cid(): Promise<string> {
-    if (!this.collectionId) this.collectionId = "dataset-" + (await this.metadata()).id;
-    return this.collectionId;
-  }
-
+  // The OGC collectionId is the dataset slug, so items() addresses the
+  // collection by slug directly — no metadata round-trip needed.
   async items(q: ItemsQuery = {}): Promise<FeatureCollection> {
     return this.t.getJson<FeatureCollection>(
-      `/v1/ogc/collections/${await this.cid()}/items`,
+      `/v1/ogc/collections/${this.slug}/items`,
       itemsParams({ limit: 100, ...q }),
     );
   }
@@ -47,14 +43,13 @@ export class Dataset {
     q: { pageSize?: number; totalLimit?: number } & Omit<ItemsQuery, "limit" | "offset"> = {},
   ): AsyncGenerator<Feature> {
     const pageSize = q.pageSize ?? 100;
-    const cid = await this.cid();
     let yielded = 0;
     let offset = 0;
     const ctrl = new AbortController();
     try {
       while (true) {
         const fc = await this.t.getJson<FeatureCollection>(
-          `/v1/ogc/collections/${cid}/items`,
+          `/v1/ogc/collections/${this.slug}/items`,
           itemsParams({ ...q, limit: pageSize, offset }),
           ctrl.signal,
         );
