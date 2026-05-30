@@ -25,6 +25,9 @@
 npm install @topolab/sdk
 ```
 
+> **Pre-release:** until the first version is published to npm, install from Git:
+> `npm install github:topolab-bv/topolab-js`
+
 Ships ES modules + CommonJS and TypeScript types. Uses the platform `fetch`, so
 Node 18+ or any modern browser / edge runtime works with no polyfill.
 

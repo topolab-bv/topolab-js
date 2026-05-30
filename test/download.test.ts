@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, rmSync, readFileSync as read } from "node:fs";
+import { readFileSync, rmSync, existsSync, readFileSync as read } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,19 @@ describe("download (node)", () => {
       rmSync(out);
     } finally {
       server.close();
+    }
+  });
+
+  it("creates the destination directory if it is missing", async () => {
+    const { server, url } = await withServer(read(FULL, "utf8"));
+    const out = "./.tmp-download-dir/nested/out.geojson";
+    try {
+      const ds = new Client({ apiKey: "k", baseUrl: url }).dataset("nl-domino-poi");
+      await download(ds, out, { format: "geojson" });
+      expect(existsSync(out)).toBe(true);
+    } finally {
+      server.close();
+      rmSync("./.tmp-download-dir", { recursive: true, force: true });
     }
   });
 });

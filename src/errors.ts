@@ -11,6 +11,10 @@ export class TopolabError extends Error {
   }
 }
 export class ConnectionError extends TopolabError {}
+/** Request exceeded the client timeout. Subclass of ConnectionError so existing
+ *  `instanceof ConnectionError` handling keeps working while callers can also
+ *  catch timeouts specifically. */
+export class TimeoutError extends ConnectionError {}
 export class AuthenticationError extends TopolabError {}
 export class ConfigurationError extends TopolabError {}
 export class NotFoundError extends TopolabError {}

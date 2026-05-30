@@ -1,6 +1,8 @@
 import type { Transport } from "./transport";
 import type { DatasetSummary, FeatureCollection, Feature, ItemsQuery } from "./types";
 
+const SAMPLE_FORMATS = new Set(["csv", "json", "geojson", "kml"]);
+
 function itemsParams(q: ItemsQuery): Record<string, unknown> {
   const p: Record<string, unknown> = {
     limit: q.limit,
@@ -26,6 +28,8 @@ export class Dataset {
 
   async sample(opts: { format?: string } = {}): Promise<unknown> {
     const format = opts.format ?? "geojson";
+    if (!SAMPLE_FORMATS.has(format))
+      throw new Error(`sample format must be one of ${[...SAMPLE_FORMATS].join(", ")}`);
     const resp = await this.t.request(`/v1/dataset/${this.slug}/sample/${format}`);
     return format === "json" || format === "geojson" ? resp.json() : resp.text();
   }

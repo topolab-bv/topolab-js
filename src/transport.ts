@@ -1,4 +1,4 @@
-import { errorFromResponse, ConnectionError } from "./errors";
+import { errorFromResponse, ConnectionError, TimeoutError } from "./errors";
 
 const VERSION = "0.1.0";
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -61,18 +61,31 @@ export class Transport {
     let last: Response | undefined;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), this.timeout);
-      if (signal) signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        ctrl.abort();
+      }, this.timeout);
+      const onAbort = () => ctrl.abort();
+      if (signal) signal.addEventListener("abort", onAbort);
       let resp: Response;
       try {
         resp = await fetch(url, { headers: this.headers, signal: ctrl.signal });
       } catch (e) {
-        clearTimeout(timer);
-        if (attempt >= this.maxRetries) throw new ConnectionError((e as Error).message);
+        // Caller-initiated cancellation: surface immediately, never retry.
+        if (signal?.aborted) throw new ConnectionError("request aborted by caller");
+        // Timeout vs. network error. Both retry while attempts remain; on the
+        // last attempt a timeout becomes a typed TimeoutError.
+        if (attempt >= this.maxRetries) {
+          throw timedOut
+            ? new TimeoutError(`request timed out after ${this.timeout}ms`)
+            : new ConnectionError((e as Error).message);
+        }
         await sleep(await this.delay(attempt));
         continue;
       } finally {
         clearTimeout(timer);
+        if (signal) signal.removeEventListener("abort", onAbort);
       }
       if (RETRY_STATUS.has(resp.status) && attempt < this.maxRetries) {
         last = resp;
