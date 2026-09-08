@@ -21,6 +21,9 @@ export class NotFoundError extends TopolabError {}
 export class ValidationError extends TopolabError {}
 export class ServerError extends TopolabError {}
 export class AccessDeniedError extends TopolabError {}
+/** A SQL query exceeded the server's statement timeout (408). Narrow the scan
+ *  (filter, LIMIT) or run it against fewer rows. */
+export class QueryTimeoutError extends TopolabError {}
 
 export class AddonRequiredError extends TopolabError {
   addon?: string;
@@ -46,7 +49,18 @@ export class RateLimitError extends TopolabError {
   }
 }
 
-const ADDON_RE = /requires the (\w+) add-?on/i;
+// Add-on identifiers are hyphenated slugs (api-access, gis-access,
+// archived-data, high-value-data, sql-access) and the two real message shapes
+// spell them differently:
+//   "This endpoint requires the api-access add-on"
+//   "Archive access requires the Archived Data add-on. Please upgrade to ..."
+// A \w+ capture stops at the hyphen and matches neither, so match lazily up to
+// the "add-on"/"addon" literal and normalise the capture to the slug.
+const ADDON_RE = /requires the (.+?) add-?on/i;
+
+function addonSlug(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, "-");
+}
 
 export async function errorFromResponse(resp: Response): Promise<TopolabError> {
   let body: any = {};
@@ -56,7 +70,9 @@ export async function errorFromResponse(resp: Response): Promise<TopolabError> {
     body = { message: await resp.clone().text().catch(() => "") };
   }
   const msg = body?.message || body?.error || "request failed";
-  const requestId = resp.headers.get("x-request-id") ?? undefined;
+  // The engine returns the id both as a header and as `requestId` in the error
+  // envelope; fall back to the body when the header is stripped by a proxy.
+  const requestId = resp.headers.get("x-request-id") ?? (typeof body?.requestId === "string" ? body.requestId : undefined);
   const base = { statusCode: resp.status, requestId, body };
   switch (resp.status) {
     case 401:
@@ -69,10 +85,12 @@ export async function errorFromResponse(resp: Response): Promise<TopolabError> {
       });
     case 403: {
       const m = ADDON_RE.exec(msg);
-      return m ? new AddonRequiredError(msg, { ...base, addon: m[1] }) : new AccessDeniedError(msg, base);
+      return m ? new AddonRequiredError(msg, { ...base, addon: addonSlug(m[1]) }) : new AccessDeniedError(msg, base);
     }
     case 404:
       return new NotFoundError(msg, base);
+    case 408:
+      return new QueryTimeoutError(msg, base);
     case 429: {
       const hdr = resp.headers.get("retry-after");
       const ra = body?.retryAfter ?? (hdr ? Number(hdr) : undefined);
