@@ -1,6 +1,6 @@
 export { Client, ENVIRONMENTS } from "./client";
 export type { Environment } from "./client";
-export { Dataset } from "./dataset";
+export { Dataset, ARCHIVE_FORMATS, archivePath, normalizeArchiveMonth } from "./dataset";
 export * from "./errors";
 export type {
   DatasetSummary,
@@ -11,4 +11,16 @@ export type {
   ClientOptions,
   Feature,
   FeatureCollection,
+  Geometry,
+  OwnedDataset,
+  OwnedDatasetLinks,
+  OwnedDatasets,
+  OwnedQuery,
+  IterOwnedQuery,
+  Archive,
+  CoordinateGeometry,
+  CoordinateRow,
+  CoordinatePage,
+  CoordinatesQuery,
+  SqlResult,
 } from "./types";

@@ -51,13 +51,29 @@ export class Transport {
     return (await resp.json()) as T;
   }
 
-  async request(path: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  /** POST a JSON body and decode a JSON response. Retries follow the same rules
+   *  as GET; the routes that use this are read-only, so replay is safe. */
+  async postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    const resp = await this.request(path, undefined, signal, { method: "POST", json: body });
+    return (await resp.json()) as T;
+  }
+
+  async request(
+    path: string,
+    params?: Record<string, unknown>,
+    signal?: AbortSignal,
+    init: { method?: string; json?: unknown } = {},
+  ): Promise<Response> {
     const url = new URL(this.baseUrl + path);
     if (params) {
       for (const [k, v] of Object.entries(params)) {
         if (v != null) url.searchParams.set(k, String(v));
       }
     }
+    const method = init.method ?? "GET";
+    const payload = init.json === undefined ? undefined : JSON.stringify(init.json);
+    const headers =
+      payload === undefined ? this.headers : { ...this.headers, "Content-Type": "application/json" };
     let last: Response | undefined;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const ctrl = new AbortController();
@@ -70,7 +86,7 @@ export class Transport {
       if (signal) signal.addEventListener("abort", onAbort);
       let resp: Response;
       try {
-        resp = await fetch(url, { headers: this.headers, signal: ctrl.signal });
+        resp = await fetch(url, { method, headers, body: payload, signal: ctrl.signal });
       } catch (e) {
         // Caller-initiated cancellation: surface immediately, never retry.
         if (signal?.aborted) throw new ConnectionError("request aborted by caller");
