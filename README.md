@@ -65,6 +65,25 @@ Or set `TOPOLAB_ENV=staging`. An explicit `baseUrl` always wins (self-hosting /
 tests). Precedence: `baseUrl` → `environment` → `TOPOLAB_BASE_URL` →
 `TOPOLAB_ENV` → production.
 
+## Pull everything you own
+
+The loop this SDK is built for — discover what your organization licences, then
+pull each dataset's newest snapshot. No hard-coded slugs:
+
+```ts
+import { Client } from "@topolab/sdk";
+import { downloadArchive } from "@topolab/sdk/node";
+
+const tl = new Client();
+
+for await (const ds of tl.datasets.iterOwned()) {
+  await downloadArchive(tl.dataset(ds.table), `${ds.table}.zip`, { month: "latest", format: "geojson" });
+}
+```
+
+`iterOwned()` is filtered by the same licence check the download routes enforce,
+so everything it yields is downloadable.
+
 ## What you can do
 
 ### Browse the catalog
@@ -103,7 +122,46 @@ await download(tl.dataset("nl-domino-poi"), "dominos-nl.geojson", { format: "geo
 ```
 
 `download` lives in the `@topolab/sdk/node` subpath because it writes to the
-filesystem — the core entry point stays browser-safe.
+filesystem — the core entry point stays browser-safe. `downloadArchive` lives
+there for the same reason.
+
+### List what you licence
+
+```ts
+const page = await tl.datasets.owned({ limit: 50 });   // page.total = all licensed datasets
+for await (const ds of tl.datasets.iterOwned()) { /* every one, paged for you */ }
+```
+
+### Monthly archives
+
+```ts
+const ds = tl.dataset("business_professional_services_autocrew");
+const months = await ds.archives();                    // newest first; free, no credits
+
+import { downloadArchive } from "@topolab/sdk/node";
+await downloadArchive(ds, "autocrew.zip", { month: "2026-07", format: "geojson" });
+```
+
+`month` is `"latest"`, `"YYYY-MM"` or `"YYYY-MM-DD"`, validated as a real
+calendar value before the request goes out. Team plans see a trailing 12 months;
+Enterprise sees everything.
+
+### Coordinates with attributes
+
+```ts
+const page = await ds.coordinates({ limit: 1000 });
+page.total;             // from X-Total-Count — the whole dataset, regardless of paging
+page.rows[0].latitude;  // "51.49638600" — a decimal string, kept as one
+```
+
+### SQL across the datasets you licence (Enterprise)
+
+```ts
+const res = await tl.sql("SELECT city, count(*) AS n FROM autocrew GROUP BY 1", { maxRows: 100 });
+```
+
+One read-only `SELECT`, restricted to datasets you hold an active licence for.
+Requires the `sql-access` entitlement, part of the Enterprise plan.
 
 ## Errors
 
@@ -115,7 +173,8 @@ Every failure throws a subclass of `TopolabError`, so you never parse raw JSON:
 | `AddonRequiredError` | key lacks the add-on — `.addon` names it (403) |
 | `AccessDeniedError` | dataset not accessible to your organization (403) |
 | `InsufficientCreditsError` | not enough credits — `.required` / `.available` (402) |
-| `NotFoundError` | unknown dataset (404) |
+| `NotFoundError` | unknown dataset, or no archive available for that month (404) |
+| `QueryTimeoutError` | a SQL query exceeded the server statement timeout (408) |
 | `RateLimitError` | rate limited — `.retryAfter`, retried automatically (429) |
 
 ```ts
