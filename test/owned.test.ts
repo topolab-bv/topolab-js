@@ -290,17 +290,19 @@ describe("sql", () => {
   });
 
   it("maps the sql-access 403 to AddonRequiredError with the slug", async () => {
+    // Read requestId from the fixture rather than hard-coding it. The fixtures
+    // are live captures and get re-captured when the API changes, so a literal
+    // here breaks for a reason that has nothing to do with this SDK.
+    const fixture = ownedFx("error-403-sql-access.json") as { requestId: string };
     server.use(
-      http.post(`${BASE}/v1/sql/query`, () =>
-        HttpResponse.json(ownedFx("error-403-sql-access.json"), { status: 403 }),
-      ),
+      http.post(`${BASE}/v1/sql/query`, () => HttpResponse.json(fixture, { status: 403 })),
     );
     const err = await tl()
       .sql("SELECT 1")
       .catch((e) => e);
     expect(err).toBeInstanceOf(AddonRequiredError);
     expect((err as AddonRequiredError).addon).toBe("sql-access");
-    expect((err as AddonRequiredError).requestId).toBe("e600e461a1bedacc6a48cb2bd3ffee07");
+    expect((err as AddonRequiredError).requestId).toBe(fixture.requestId);
   });
 
   it("maps a 408 to QueryTimeoutError", async () => {
