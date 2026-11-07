@@ -1,6 +1,6 @@
 import { errorFromResponse, ConnectionError, TimeoutError } from "./errors";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

@@ -3,7 +3,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { Client } from "../src/client";
 import { normalizeArchiveMonth } from "../src/dataset";
-import { AddonRequiredError, NotFoundError, QueryTimeoutError, ValidationError } from "../src/errors";
+import { AccessDeniedError, AddonRequiredError, NotFoundError, QueryTimeoutError, ValidationError } from "../src/errors";
 import { ownedFx, BASE } from "./setup";
 
 const server = setupServer();
@@ -312,6 +312,57 @@ describe("sql", () => {
       ),
     );
     await expect(tl().sql("SELECT pg_sleep(60)")).rejects.toBeInstanceOf(QueryTimeoutError);
+  });
+
+  it("surfaces a string code (SQL_DATA_ERROR) through the client", async () => {
+    server.use(
+      http.post(`${BASE}/v1/sql/query`, () =>
+        HttpResponse.json(
+          {
+            path: "/v1/sql/query",
+            method: "POST",
+            code: "SQL_DATA_ERROR",
+            message: "The query raised a data error (SQLSTATE 22P02) while evaluating a value.",
+            time: "2026-11-07T11:52:28.000Z",
+            requestId: "3c5e7a9b",
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const err = await tl()
+      .sql("SELECT 'x'::int")
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.code).toBe("SQL_DATA_ERROR");
+    expect(err.status).toBe(400);
+    expect(err.requestId).toBe("3c5e7a9b");
+  });
+
+  it("surfaces SPENDING_LIMIT_EXCEEDED with its details through the client", async () => {
+    server.use(
+      http.post(`${BASE}/v1/sql/query`, () =>
+        HttpResponse.json(
+          {
+            path: "/v1/sql/query",
+            method: "POST",
+            code: "SPENDING_LIMIT_EXCEEDED",
+            message: "Organization monthly spending limit exceeded",
+            details: { limit: 5000, consumed: 4995, remaining: 5, periodEnd: "2026-11-30T23:59:59.999Z" },
+            time: "2026-11-07T11:52:28.000Z",
+            requestId: "8f0c41d2",
+          },
+          { status: 403 },
+        ),
+      ),
+    );
+    const err = await tl()
+      .sql("SELECT 1")
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(AccessDeniedError);
+    expect(err.code).toBe("SPENDING_LIMIT_EXCEEDED");
+    expect(err.status).toBe(403);
+    expect(err.details.remaining).toBe(5);
   });
 });
 

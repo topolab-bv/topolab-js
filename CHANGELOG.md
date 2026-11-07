@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## [0.2.0]
+### Changed
+- **Errors expose `status`, `code` and `details`.** The engine's error envelope
+  now carries a string `code` when the error has its own (upper-snake, such as
+  `SPENDING_LIMIT_EXCEEDED`), and otherwise the numeric HTTP status, so `code` no
+  longer always equals the status.
+  - `TopolabError.code` is `ErrorCode` (`string | number`, exported); it falls back
+    to the HTTP status when the body has no usable code.
+  - `TopolabError.status` is the HTTP status of the response. `statusCode` is kept
+    with the same value, and the constructor still accepts `{ statusCode }`.
+  - `TopolabError.details` is the envelope's allow-listed `details` object.
+  - Error classes are still chosen from the HTTP status: a 403 with
+    `SPENDING_LIMIT_EXCEEDED` is an `AccessDeniedError`.
+  - `docs/errors.md` lists the known string codes and what they mean.
+  - `TopolabErrorOptions` is exported for code that constructs SDK errors.
+
 ### Added
 - `tl.datasets.owned({limit, offset})` and `tl.datasets.iterOwned({pageSize, totalLimit})` —
   list the datasets your organization licences, or stream every one with
