@@ -11,7 +11,7 @@ Every failure throws a subclass of `TopolabError`, so you never parse raw JSON.
 | `NotFoundError` | unknown dataset or collection (404) |
 | `ValidationError` | invalid request parameters (400/4xx) |
 | `QueryTimeoutError` | a SQL query exceeded the server statement timeout (408) |
-| `RateLimitError` | rate limited — `.retryAfter`, retried automatically (429) |
+| `RateLimitError` | rate limited (`code` `RATE_LIMIT_EXCEEDED`) or the key's usage quota is used up (`USAGE_QUOTA_EXCEEDED`) — `.retryAfter`, retried automatically (429) |
 | `ConfigurationError` | client misconfiguration (missing key, invalid base URL) |
 | `ServerError` | upstream error (5xx), retried automatically |
 | `ConnectionError` | network failure after retries |
@@ -60,7 +60,7 @@ Every error built from a response carries:
 | Property | Type | Meaning |
 |---|---|---|
 | `status` | `number` | HTTP status of the response. Use this for numeric checks. |
-| `statusCode` | `number` | Same value as `status`, kept for code written against 0.1. |
+| `statusCode` | `number` | Alias of `status`, kept for code written against 0.1. Reading or assigning either one changes both. |
 | `code` | `ErrorCode` (`string` or `number`) | The envelope's `code`; the HTTP status when the body has none (for example a proxy's error page). |
 | `details` | `Record<string, unknown>` or `undefined` | The envelope's allow-listed `details`, when present. |
 | `requestId` | `string` or `undefined` | The `X-Request-Id` header, falling back to the envelope's `requestId`; quote it in support requests. |
@@ -99,6 +99,8 @@ Codes this SDK's calls can return:
 | 400 | `SQL_DATA_ERROR` | `ValidationError` | The SQL query raised a data error while evaluating a value, such as a bad cast. The message names the SQLSTATE. | none |
 | 400 | `MAX_NODES_EXCEEDED`, `MAX_DEPTH_EXCEEDED`, `MAX_ARRAY_LENGTH_EXCEEDED`, `MAX_KEYS_EXCEEDED` | `ValidationError` | A JSON request body is larger or deeper than the server accepts. | none |
 | 400 | `PROTOTYPE_POLLUTION_KEY` | `ValidationError` | A JSON request body contains a forbidden key (`__proto__`, `constructor`, `prototype`). | none |
+| 429 | `RATE_LIMIT_EXCEEDED` | `RateLimitError` | The API key passed its per-minute rate limit. The response also carries a `Retry-After` header. | `retryAfter` (seconds), `limit`, `remaining` (numbers), `resetAt` (ISO 8601 timestamp) |
+| 429 | `USAGE_QUOTA_EXCEEDED` | `RateLimitError` | The API key has used up its usage quota. Waiting does not help; `.retryAfter` is `undefined`. | `quota`, `used` (numbers) |
 
 Numeric codes that carry `details`:
 
@@ -142,6 +144,13 @@ cannot access.
 ## Retries
 
 Transient statuses (`429`, `500`, `502`, `503`, `504`) and network errors are
-retried with exponential backoff, honouring `Retry-After` / `retryAfter` when
-present. `maxRetries` (default 3) is the number of retries **after** the first
-attempt.
+retried with exponential backoff. When the server says how long to wait, the SDK
+waits that long instead, reading in order:
+
+1. the `Retry-After` header (seconds, or an HTTP date);
+2. `details.retryAfter` (seconds);
+3. a top-level `retryAfter`, sent by engines older than the `RATE_LIMIT_EXCEEDED` code.
+
+`RateLimitError.retryAfter` holds the same value, and `retryAfterSeconds(headers,
+body)` is exported for your own retry logic. `maxRetries` (default 3) is the
+number of retries **after** the first attempt.

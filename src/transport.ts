@@ -1,6 +1,6 @@
-import { errorFromResponse, ConnectionError, TimeoutError } from "./errors";
+import { errorFromResponse, retryAfterSeconds, ConnectionError, TimeoutError } from "./errors";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,14 +34,14 @@ export class Transport {
 
   private async delay(attempt: number, resp?: Response): Promise<number> {
     if (resp) {
+      let body: unknown;
       try {
-        const b = await resp.clone().json();
-        if (b?.retryAfter != null) return Number(b.retryAfter) * 1000;
+        body = await resp.clone().json();
       } catch {
-        /* ignore */
+        body = undefined;
       }
-      const hdr = resp.headers.get("retry-after");
-      if (hdr) return Number(hdr) * 1000;
+      const wait = retryAfterSeconds(resp.headers, body);
+      if (wait !== undefined) return wait * 1000;
     }
     return this.backoffBase * 2 ** attempt;
   }

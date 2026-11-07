@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.1]
+### Fixed
+- `statusCode` now follows `status`: it is an enumerable own accessor, so assigning
+  either one changes both, and loggers and `JSON.stringify` still see it.
+- `InsufficientCreditsError.required` / `.available` are set only when the 402's
+  `details` values are finite numbers; anything else leaves them `undefined`.
+- An HTTP-date `Retry-After` header made the retry delay `NaN`, so the retry ran
+  at once. It is now read as a date, and an unparseable header is ignored.
+
+### Changed
+- 429 handling follows the engine's `RATE_LIMIT_EXCEEDED` and
+  `USAGE_QUOTA_EXCEEDED` codes. The wait is read from the `Retry-After` header,
+  then `details.retryAfter`, then the older top-level `retryAfter`;
+  `RateLimitError.retryAfter` and the retry delay use the same rule, exported as
+  `retryAfterSeconds(headers, body)`.
+- `docs/errors.md` lists both 429 codes and their `details`.
+
 ## [0.2.0]
 ### Changed
 - **Errors expose `status`, `code` and `details`.** The engine's error envelope
