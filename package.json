@@ -1,6 +1,6 @@
 {
   "name": "@topolab/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Official TypeScript client for the Topolab dataset and geospatial API.",
   "license": "MIT",
   "keywords": ["topolab", "geospatial", "geojson", "ogc", "ogc-api-features", "datasets", "gis", "api-client", "sdk"],

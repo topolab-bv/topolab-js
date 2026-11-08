@@ -18,9 +18,10 @@ export interface TopolabErrorOptions {
 export class TopolabError extends Error {
   /** HTTP status of the response; `undefined` when no response exists. */
   status?: number;
-  /** Same value as `status`, kept as an own property for code (and loggers)
-   *  written against 0.1. */
-  statusCode?: number;
+  /** Alias of `status`, kept for code written against 0.1. It is an enumerable
+   *  own accessor, so loggers and `JSON.stringify` still see it, and it always
+   *  reads and writes `status`. */
+  declare statusCode?: number;
   /** The envelope's `code`: a string code, or the numeric HTTP status. Compare
    *  string codes by equality and read `status` for the HTTP status. */
   code?: ErrorCode;
@@ -32,7 +33,14 @@ export class TopolabError extends Error {
     super(message);
     this.name = new.target.name;
     this.status = opts.status ?? opts.statusCode;
-    this.statusCode = this.status;
+    Object.defineProperty(this, "statusCode", {
+      get: () => this.status,
+      set: (value: number | undefined) => {
+        this.status = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
     this.code = opts.code;
     this.details = opts.details;
     this.requestId = opts.requestId;
@@ -100,6 +108,41 @@ function envelopeCode(body: any, status: number): ErrorCode {
   return status;
 }
 
+/** A finite number, or `undefined`. */
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** A non-negative, finite number of seconds from a number or a numeric string. */
+function seconds(value: unknown): number | undefined {
+  let n: number | undefined;
+  if (typeof value === "number") n = value;
+  else if (typeof value === "string" && value.trim() !== "" && /^\s*[0-9.eE+-]+\s*$/.test(value)) n = Number(value);
+  return n !== undefined && Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/** A `Retry-After` header as seconds: delay-seconds or an HTTP-date
+ *  (RFC 9110, section 10.2.3). */
+function headerSeconds(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const direct = seconds(value);
+  if (direct !== undefined) return direct;
+  const when = Date.parse(value);
+  return Number.isNaN(when) ? undefined : Math.max(0, (when - Date.now()) / 1000);
+}
+
+/**
+ * How long the server asked the client to wait, in seconds, or `undefined`.
+ * The `Retry-After` header comes first (the engine sends it on every 429 that
+ * carries a wait, rounded up), then `details.retryAfter` (engine #650 and
+ * later), then a top-level `retryAfter` from older engines.
+ */
+export function retryAfterSeconds(headers: Headers, body: any): number | undefined {
+  return (
+    headerSeconds(headers.get("retry-after")) ?? seconds(body?.details?.retryAfter) ?? seconds(body?.retryAfter)
+  );
+}
+
 function envelopeDetails(body: any): Record<string, unknown> | undefined {
   const details = body?.details;
   return details !== null && typeof details === "object" && !Array.isArray(details) ? details : undefined;
@@ -131,8 +174,8 @@ export async function errorFromResponse(resp: Response): Promise<TopolabError> {
     case 402:
       return new InsufficientCreditsError(msg, {
         ...base,
-        required: base.details?.required,
-        available: base.details?.available,
+        required: finiteNumber(base.details?.required),
+        available: finiteNumber(base.details?.available),
       });
     case 403: {
       const m = ADDON_RE.exec(msg);
@@ -142,11 +185,8 @@ export async function errorFromResponse(resp: Response): Promise<TopolabError> {
       return new NotFoundError(msg, base);
     case 408:
       return new QueryTimeoutError(msg, base);
-    case 429: {
-      const hdr = resp.headers.get("retry-after");
-      const ra = body?.retryAfter ?? (hdr ? Number(hdr) : undefined);
-      return new RateLimitError(msg, { ...base, retryAfter: ra });
-    }
+    case 429:
+      return new RateLimitError(msg, { ...base, retryAfter: retryAfterSeconds(resp.headers, body) });
     case 400:
       return /organization/i.test(msg) ? new ConfigurationError(msg, base) : new ValidationError(msg, base);
     default:
