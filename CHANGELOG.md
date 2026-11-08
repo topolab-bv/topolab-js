@@ -16,6 +16,9 @@
   `RateLimitError.retryAfter` and the retry delay use the same rule, exported as
   `retryAfterSeconds(headers, body)`.
 - `docs/errors.md` lists both 429 codes and their `details`.
+- `docs/errors.md` names the chat API's stream error codes in upper-snake case
+  (`AI_BUSY`, `AI_INTERRUPTED`, `AI_CANCELLED`), matching the engine, which
+  renamed every chat error code from lower-snake.
 
 ## [0.2.0]
 ### Changed
