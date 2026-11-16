@@ -44,7 +44,7 @@ The client targets **production** (`https://api.topolab.nl`) by default. Switch
 with the `environment` option:
 
 ```ts
-const tl = new Client({ apiKey: "tlb_staging_...", environment: "staging" }); // https://api-staging.topolab.nl
+const tl = new Client({ apiKey: "tlb_staging_...", environment: "staging" }); // https://api.topolab.dev
 ```
 
 Or set `TOPOLAB_ENV=staging`. An explicit `baseUrl` always wins. Precedence:

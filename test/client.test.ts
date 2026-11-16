@@ -23,8 +23,8 @@ describe("client", () => {
     delete process.env.TOPOLAB_API_KEY;
   });
   it("reads base url from TOPOLAB_BASE_URL env", () => {
-    process.env.TOPOLAB_BASE_URL = "https://api-staging.topolab.nl";
-    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api-staging.topolab.nl");
+    process.env.TOPOLAB_BASE_URL = "https://api.topolab.dev";
+    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api.topolab.dev");
     delete process.env.TOPOLAB_BASE_URL;
   });
   it("throws without key", () => {
@@ -39,7 +39,7 @@ describe("client", () => {
     delete process.env.TOPOLAB_BASE_URL;
     delete process.env.TOPOLAB_ENV;
     expect(new Client({ apiKey: "k", environment: "staging" }).baseUrl).toBe(
-      "https://api-staging.topolab.nl",
+      "https://api.topolab.dev",
     );
   });
   it("throws on an unknown environment", () => {
@@ -48,7 +48,7 @@ describe("client", () => {
   it("reads TOPOLAB_ENV from the environment", () => {
     delete process.env.TOPOLAB_BASE_URL;
     process.env.TOPOLAB_ENV = "staging";
-    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api-staging.topolab.nl");
+    expect(new Client({ apiKey: "k" }).baseUrl).toBe("https://api.topolab.dev");
     delete process.env.TOPOLAB_ENV;
   });
   it("explicit baseUrl beats environment", () => {

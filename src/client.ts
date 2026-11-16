@@ -18,7 +18,7 @@ const MAX_OWNED_LIMIT = 200;
 // keyword away. Self-hosting / tests can still pass an explicit baseUrl.
 export const ENVIRONMENTS = {
   production: "https://api.topolab.nl",
-  staging: "https://api-staging.topolab.nl",
+  staging: "https://api.topolab.dev",
 } as const;
 export type Environment = keyof typeof ENVIRONMENTS;
 const DEFAULT_BASE_URL = ENVIRONMENTS.production;

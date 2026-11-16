@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+### Changed
+- The staging base URL is now `https://api.topolab.dev` (was
+  `https://api-staging.topolab.nl`). `environment: "staging"` resolves to it.
+
 ## [0.2.1]
 ### Fixed
 - `statusCode` now follows `status`: it is an enumerable own accessor, so assigning
