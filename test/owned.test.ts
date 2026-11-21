@@ -203,16 +203,57 @@ describe("coordinates", () => {
     expect(page.rows.length).toBe(2);
   });
 
-  it("keeps latitude/longitude as the strings the API sends", async () => {
+  it("coordinates rows are flat: the dataset's columns sit on the row itself", async () => {
+    server.use(
+      http.get(`${BASE}/v1/dataset/${TABLE}/coordinates`, () => HttpResponse.json(rows())),
+    );
+    const row = (await tl().dataset(TABLE).coordinates()).rows[0];
+    for (const gone of ["metadata", "location", "datasetId", "dataset"]) expect(row).not.toHaveProperty(gone);
+    expect(row.id).toBe("02be5c77-fe43-44ca-878a-48cddddde98c");
+    expect(row.latitude).toBe(51.496386);
+    expect(row.longitude).toBe(3.655321);
+    expect(row.geo_type).toBe("POINT");
+    expect(row.geometry).toEqual({ type: "Point", coordinates: [3.655321, 51.496386] });
+    expect(row.city).toBe("Middelburg");
+    expect(row.street).toBe("Ampèreweg");
+    expect(row.tags).toEqual([]);
+    expect(row.category_path).toEqual([]);
+    expect(row.unit).toBeNull();
+    expect(row.street_number_ext).toBe("R");
+  });
+
+  it("keeps the order the API sends: id first, the position after the name, geometry last", async () => {
     server.use(
       http.get(`${BASE}/v1/dataset/${TABLE}/coordinates`, () => HttpResponse.json(rows())),
     );
     const page = await tl().dataset(TABLE).coordinates();
-    expect(page.rows[0].latitude).toBe("51.49638600");
-    expect(page.rows[0].longitude).toBe("3.65532100");
-    expect(page.rows[0].location.type).toBe("Point");
-    expect(page.rows[0].location.coordinates).toEqual([3.655321, 51.496386]);
-    expect(page.rows[0].metadata.city).toBe("Middelburg");
+    page.rows.forEach((row, i) => {
+      const keys = Object.keys(row);
+      expect(keys).toEqual(Object.keys(rows()[i]));
+      expect(keys[0]).toBe("id");
+      expect(keys.at(-1)).toBe("geometry");
+      const name = keys.indexOf("location_name");
+      expect(keys.slice(name + 1, name + 3)).toEqual(["latitude", "longitude"]);
+    });
+  });
+
+  it("passes null coordinates through for a record with no position", async () => {
+    const noPosition = {
+      id: "a6a3a0d5-0000-4000-8000-000000000001",
+      location_name: "Unplaced",
+      latitude: null,
+      longitude: null,
+      city: null,
+      geo_type: "POINT",
+      geometry: { type: "Point", coordinates: [null, null] },
+    };
+    server.use(
+      http.get(`${BASE}/v1/dataset/${TABLE}/coordinates`, () => HttpResponse.json([noPosition])),
+    );
+    const row = (await tl().dataset(TABLE).coordinates()).rows[0];
+    expect(row.latitude).toBeNull();
+    expect(row.longitude).toBeNull();
+    expect(row.geometry.coordinates).toEqual([null, null]);
   });
 
   it("falls back to the row count when the headers are missing", async () => {

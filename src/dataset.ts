@@ -113,10 +113,11 @@ export class Dataset {
     return this.t.getJson<Archive[]>(`/v1/dataset/${this.slug}/archives/list`);
   }
 
-  /** One page of coordinate rows with their attribute bag. The body is a bare
-   *  array and the paging facts arrive as `X-Total-Count` / `X-Returned-Count` /
-   *  `X-Offset` headers, so this reads the raw response. Omit both parameters to
-   *  receive the whole dataset in one response, capped at 50000 rows. */
+  /** One page of the dataset's records as flat rows (see `CoordinateRow`),
+   *  ordered by `id`. The body is a bare array and the paging facts arrive as
+   *  `X-Total-Count` / `X-Returned-Count` / `X-Offset` headers, so this reads
+   *  the raw response. Omit both parameters to receive the whole dataset in one
+   *  response, capped at 50000 rows. */
   async coordinates(q: CoordinatesQuery = {}): Promise<CoordinatePage> {
     if (q.limit != null) boundedInt("limit", q.limit, 1, MAX_COORDINATES);
     if (q.offset != null) boundedInt("offset", q.offset, 0, Number.MAX_SAFE_INTEGER);
