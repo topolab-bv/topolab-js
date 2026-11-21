@@ -65,7 +65,7 @@ that exceeds the server statement timeout throws `QueryTimeoutError` (408).
 | `.items(query?)` | `Promise<FeatureCollection>` | One page of OGC features |
 | `.iterItems(query?)` | `AsyncGenerator<Feature>` | Auto-paginates; cancels on early `break` |
 | `.archives()` | `Promise<Archive[]>` | Monthly snapshots, newest first; free |
-| `.coordinates(query?)` | `Promise<CoordinatePage>` | Raw rows + attributes, paged via headers |
+| `.coordinates(query?)` | `Promise<CoordinatePage>` | Flat rows, one per record, paged via headers |
 
 ### `Archive`
 
@@ -84,15 +84,25 @@ Enterprise and full-history add-ons see everything.
 
 { rows: CoordinateRow[]; total: number; returned: number; offset: number }
 
-{ id: string; location: CoordinateGeometry;
-  latitude: string; longitude: string;     // decimal strings, never coerced
-  metadata: Record<string, unknown> }
+{ id: string;
+  latitude: number | null; longitude: number | null;   // WGS 84
+  geo_type: string | null;                             // "POINT" on this route
+  geometry: { type: "Point"; coordinates: [number | null, number | null] };
+  [column: string]: unknown }                          // the dataset's columns
 ```
 
 The body is a bare array; `total` / `returned` / `offset` come from the
 `X-Total-Count` / `X-Returned-Count` / `X-Offset` response headers. Missing or
 unparseable headers fall back to `rows.length` (`total`, `returned`) and `0`
 (`offset`) rather than failing a successful response.
+
+A `CoordinateRow` is flat: the free sample's row for your tier plus the record's
+`id`. `Object.keys(row)` reads `id` first, `latitude` and `longitude` directly
+after `location_name`, `geo_type` after the dataset's columns, and `geometry`
+last. An empty value is `null` and a list (`tags`, `category_path`, `services`)
+is an array. The advanced columns (such as `phone`, `email`, `website`, `hours`)
+and their credit columns are present only with the High-Value Data add-on for
+the dataset; a column the dataset keeps private is absent.
 
 ### `ItemsQuery`
 

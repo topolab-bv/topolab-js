@@ -79,26 +79,37 @@ Two failure modes are worth telling apart:
 Retention: **Team** plans see a trailing 12 months of archives; **Enterprise**
 and full-history add-ons see everything.
 
-## Coordinates with attributes
+## Coordinates as flat rows
 
-`coordinates()` returns raw rows — geometry plus the attribute bag — instead of
-GeoJSON features. The API sends the rows as a bare array and reports the paging
-facts in response headers, which the SDK folds into the returned page:
+`coordinates()` returns one flat row per record instead of GeoJSON features. The
+API sends the rows as a bare array, ordered by `id`, and reports the paging facts
+in response headers, which the SDK folds into the returned page:
 
 ```ts
 const page = await ds.coordinates({ limit: 1000, offset: 0 });
 page.total;    // X-Total-Count: rows in the whole dataset, regardless of paging
 page.returned; // X-Returned-Count
 page.offset;   // X-Offset
-page.rows[0].latitude; // "51.49638600" — a decimal string, never coerced to a number
+
+const row = page.rows[0];
+row.id;        // the record's identifier
+row.latitude;  // 51.496386: a number, or null for a record with no position
+row.geo_type;  // "POINT"
+row.geometry;  // { type: "Point", coordinates: [3.655321, 51.496386] }
+row.city;      // "Middelburg": the dataset's columns sit on the row itself
 ```
 
-`latitude` and `longitude` arrive as strings and are kept as strings; parsing
-them would silently drop precision the API preserves. `limit` maxes out at
-50000, and omitting both parameters returns the whole dataset in one response
-(capped at the same 50000 rows). Advanced-tier attributes (email, phone,
-website, hours, services) appear only if your organization is entitled to
-high-value data for that dataset.
+Each row is the free sample's row for your tier plus `id`, and its keys keep the
+dataset's column order: `id` first, `latitude` and `longitude` directly after
+`location_name`, `geo_type` after the dataset's columns, and `geometry` last.
+The dataset's columns are typed `unknown` because they differ per dataset; the
+dataset detail (`GET /v1/dataset/{table}`) describes them in `columns`. An empty
+value is `null` and a list (`tags`, `category_path`) is an array.
+
+`limit` maxes out at 50000, and omitting both parameters returns the whole
+dataset in one response (capped at the same 50000 rows). The advanced columns
+(such as `phone`, `email`, `website`, `hours`, `services`) appear only if your
+organization holds the High-Value Data add-on for that dataset.
 
 ## SQL across the datasets you licence (Enterprise)
 

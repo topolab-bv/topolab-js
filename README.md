@@ -146,13 +146,19 @@ await downloadArchive(ds, "autocrew.zip", { month: "2026-07", format: "geojson" 
 calendar value before the request goes out. Team plans see a trailing 12 months;
 Enterprise sees everything.
 
-### Coordinates with attributes
+### Coordinates as flat rows
 
 ```ts
 const page = await ds.coordinates({ limit: 1000 });
-page.total;             // from X-Total-Count — the whole dataset, regardless of paging
-page.rows[0].latitude;  // "51.49638600" — a decimal string, kept as one
+page.total;             // from X-Total-Count: the whole dataset, regardless of paging
+const row = page.rows[0];
+row.latitude;           // 51.496386, a number (null for a record with no position)
+row.city;               // the dataset's columns sit on the row itself (typed unknown)
+row.geometry;           // { type: "Point", coordinates: [3.655321, 51.496386] }
 ```
+
+Each row is the free sample's row for your tier plus the record's `id`, with its
+keys in the dataset's column order.
 
 ### SQL across the datasets you licence (Enterprise)
 

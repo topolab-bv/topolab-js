@@ -78,4 +78,21 @@ describe("conventions", () => {
     expect(typeof client.datasets.iterOwned).toBe("function");
     expect(typeof client.sql).toBe("function");
   });
+
+  it("the coordinates fixture follows coordinate_row", () => {
+    const shape = conv.coordinate_row;
+    const rows = JSON.parse(
+      readFileSync(resolve(here, "../../topolab-sdk-spec/fixtures/owned/coordinates.json"), "utf8"),
+    ) as Record<string, unknown>[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const keys = Object.keys(row);
+      expect(keys[0]).toBe(shape.first);
+      expect(keys.at(-1)).toBe(shape.last);
+      for (const key of Object.keys(shape.fixed)) expect(keys).toContain(key);
+      for (const key of shape.removed) expect(keys).not.toContain(key);
+      const anchor = keys.indexOf("location_name") >= 0 ? keys.indexOf("location_name") : keys.indexOf(shape.first);
+      expect(keys.slice(anchor + 1, anchor + 1 + shape.after_name.length)).toEqual(shape.after_name);
+    }
+  });
 });

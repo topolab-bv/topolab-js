@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection, Geometry, GeometryCollection } from "geojson";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 export type { Feature, FeatureCollection, Geometry };
 
 export interface DatasetSummary {
@@ -101,20 +101,36 @@ export interface Archive {
   archiveDate?: string;
 }
 
-/** GeoJSON geometry as returned by the coordinates route — always carries
- *  `coordinates` (a GeometryCollection is never emitted here). */
-export type CoordinateGeometry = Exclude<Geometry, GeometryCollection>;
+/** A coordinate row's point as a GeoJSON Point, `[longitude, latitude]`
+ *  (RFC 7946 order). Both are null for a record with no position. */
+export interface CoordinateGeometry {
+  type: "Point";
+  coordinates: [number | null, number | null];
+}
+/** One record of the coordinates route as a flat row: the free sample's row
+ *  for your tier plus the record's `id`. The keys arrive in the dataset's
+ *  column order and `JSON.parse` keeps it, so `Object.keys(row)` reads `id`
+ *  first, `latitude` and `longitude` directly after `location_name`,
+ *  `geo_type` after the dataset's columns, and `geometry` last.
+ *
+ *  The dataset's columns vary per dataset and tier, so they are typed
+ *  `unknown`; `GET /v1/dataset/{table}` describes them in `columns`. An empty
+ *  value is `null` and a list (`tags`, `category_path`, `services`) is an
+ *  array. The advanced columns (such as `phone`, `email`, `website`, `hours`)
+ *  and their credit columns are present only with the High-Value Data add-on
+ *  for the dataset; a column the dataset keeps private is absent. */
 export interface CoordinateRow {
+  /** The record's identifier; rows are ordered by it. */
   id: string;
-  location: CoordinateGeometry;
-  /** Sent by the API as a decimal string, and kept as one — parsing it to a
-   *  number would silently lose precision the API deliberately preserves. */
-  latitude: string;
-  /** Decimal string; see `latitude`. */
-  longitude: string;
-  /** Attribute bag. Advanced-tier fields (email, phone, website, hours,
-   *  services) are present only for organizations entitled to high-value data. */
-  metadata: Record<string, unknown>;
+  /** WGS 84 latitude. */
+  latitude: number | null;
+  /** WGS 84 longitude. */
+  longitude: number | null;
+  /** The served geometry's type in upper case: `"POINT"` on this route. */
+  geo_type: string | null;
+  geometry: CoordinateGeometry;
+  /** Every other key is one of the dataset's columns. */
+  [column: string]: unknown;
 }
 /** A page of coordinate rows. The paging facts arrive as response headers
  *  (`X-Total-Count`, `X-Returned-Count`, `X-Offset`), not in the body. */
