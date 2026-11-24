@@ -1,4 +1,4 @@
-import { errorFromResponse, retryAfterSeconds, ConnectionError, TimeoutError } from "./errors";
+import { errorFromResponse, retryAfterSeconds, ConnectionError, TimeoutError, type TopolabError } from "./errors";
 
 const VERSION = "0.2.1";
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -74,6 +74,23 @@ export class Transport {
     const payload = init.json === undefined ? undefined : JSON.stringify(init.json);
     const headers =
       payload === undefined ? this.headers : { ...this.headers, "Content-Type": "application/json" };
+    return this.send(url, { method, headers, body: payload }, signal, errorFromResponse);
+  }
+
+  /** GET a signed link. A signed link carries its own authorisation, so this is
+   *  a plain fetch: no API key, no Accept, no header of ours. Retries, timeout
+   *  and cancellation follow the same rules as every other request. */
+  async fetchSigned(url: string, signal?: AbortSignal): Promise<Response> {
+    return this.send(new URL(url, this.baseUrl + "/"), { method: "GET" }, signal, signedLinkError);
+  }
+
+  private async send(
+    url: URL,
+    init: { method: string; headers?: Record<string, string>; body?: string },
+    signal: AbortSignal | undefined,
+    toError: (resp: Response) => Promise<TopolabError>,
+  ): Promise<Response> {
+    const { method, headers, body: payload } = init;
     let last: Response | undefined;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const ctrl = new AbortController();
@@ -108,9 +125,19 @@ export class Transport {
         await sleep(await this.delay(attempt, resp));
         continue;
       }
-      if (resp.status >= 400) throw await errorFromResponse(resp);
+      if (resp.status >= 400) throw await toError(resp);
       return resp;
     }
-    throw await errorFromResponse(last as Response);
+    throw await toError(last as Response);
   }
+}
+
+/** The error for a failed signed-link fetch. The class follows the status as
+ *  everywhere else; the message never repeats the storage host's body, which
+ *  can quote the link's signature. */
+async function signedLinkError(resp: Response): Promise<TopolabError> {
+  const err = await errorFromResponse(resp);
+  err.message = `Fetching the file from its signed link failed with HTTP ${resp.status}. Call again for a new link.`;
+  err.body = undefined;
+  return err;
 }

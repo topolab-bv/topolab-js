@@ -3,8 +3,9 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { ARCHIVE_FORMATS, archivePath } from "./dataset";
+import { ARCHIVE_FORMATS, archivePath, normalizeArchiveMonth } from "./dataset";
 import type { Dataset } from "./dataset";
+import { fetchViaLink } from "./links";
 
 async function stream(resp: Response, path: string): Promise<string> {
   if (!resp.body) throw new Error("empty response body");
@@ -13,10 +14,19 @@ async function stream(resp: Response, path: string): Promise<string> {
 }
 
 /**
- * Stream a dataset bulk export to a file path. Node-only.
+ * Stream the current month's file of a dataset to a file path. Node-only.
+ *
+ * Asks the link route (`POST /v1/dataset/{table}/exports`) for a signed link to
+ * the file and fetches it with a plain `fetch` that sends neither the API key
+ * nor `Accept`. While the file is being prepared (202) it waits the
+ * `retryAfterSeconds` the server names and asks again, for at most 30 minutes,
+ * then throws a `ServerError` with `code === "FILE_PREPARING"`. A server
+ * without the link route (404 or 405) gets today's `GET .../files/{format}`
+ * instead, decided on every call. Other errors (402, 403, 5xx) are thrown.
  *
  * Creates the destination directory if it does not exist. Pass `opts.signal`
- * to cancel an in-flight download (e.g. on user abort or a wrapping timeout).
+ * to cancel an in-flight download or a wait (e.g. on user abort or a wrapping
+ * timeout).
  */
 export async function download(
   ds: Dataset,
@@ -27,7 +37,13 @@ export async function download(
   if (!ARCHIVE_FORMATS.has(format))
     throw new Error(`download format must be one of ${[...ARCHIVE_FORMATS].join(", ")}`);
   await mkdir(dirname(path), { recursive: true });
-  const resp = await ds.t.request(`/v1/dataset/${ds.slug}/files/${format}`, undefined, opts.signal);
+  const resp = await fetchViaLink(
+    ds.t,
+    ds.slug,
+    { format, bundle: "file" },
+    `/v1/dataset/${ds.slug}/files/${format}`,
+    opts.signal,
+  );
   return stream(resp, path);
 }
 
@@ -44,17 +60,24 @@ export async function download(
  * as are months outside the retention window and months that have not started,
  * which the API deliberately does not distinguish.
  *
+ * The zip comes through the link route, like {@link download}: a signed link
+ * fetched without the API key, waiting while the file is prepared, and today's
+ * `GET .../archives/{month}/{format}` on a server without the link route.
+ *
  * Creates the destination directory if it does not exist. Pass `opts.signal` to
- * cancel an in-flight download. The archive arrives as a zip (or gzip when the
- * stored object is gzipped), so name the destination accordingly.
+ * cancel an in-flight download or a wait. The archive arrives as a zip, so name
+ * the destination accordingly.
  */
 export async function downloadArchive(
   ds: Dataset,
   path: string,
   opts: { month?: string; format?: string; signal?: AbortSignal } = {},
 ): Promise<string> {
-  const route = archivePath(ds.slug, opts.month ?? "latest", opts.format ?? "geojson");
+  const format = opts.format ?? "geojson";
+  // Validates month and format before anything is sent.
+  const route = archivePath(ds.slug, opts.month ?? "latest", format);
+  const month = normalizeArchiveMonth(opts.month ?? "latest");
   await mkdir(dirname(path), { recursive: true });
-  const resp = await ds.t.request(route, undefined, opts.signal);
+  const resp = await fetchViaLink(ds.t, ds.slug, { format, month, bundle: "zip" }, route, opts.signal);
   return stream(resp, path);
 }

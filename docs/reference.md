@@ -114,8 +114,14 @@ Both stream to disk, create the destination directory if missing, and accept an
 `AbortSignal`. Formats: `csv`/`json`/`geojson`/`kml`/`shp`. Node-only — kept out
 of the core entry so the browser bundle stays free of `node:` imports.
 
-`downloadArchive` pulls one monthly archive (a zip, or gzip when the stored
-object is gzipped). `month` defaults to `"latest"` and accepts `"latest"` (any
+Both fetch through the link route (`POST /v1/dataset/{table}/exports`): a
+10-minute signed link fetched without `X-API-Key` or `Accept`, waiting while the
+file is prepared (at most 30 minutes, then `ServerError` with
+`code === "FILE_PREPARING"`). A 404 or 405 from the link route sends that call
+to the old route (`GET .../files/{format}` or
+`GET .../archives/{month}/{format}`); 402, 403 and 5xx are thrown.
+
+`downloadArchive` pulls one monthly archive (a zip). `month` defaults to `"latest"` and accepts `"latest"` (any
 case), `"YYYY-MM"` or `"YYYY-MM-DD"`; `format` defaults to `"geojson"`. The
 month is validated as a calendar value before the request is sent, so
 `2026-13`, `2026-07-99` and `2026-02-29` throw locally while `2024-02-29` does

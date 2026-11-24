@@ -12,10 +12,20 @@ import { download, downloadArchive } from "../src/node";
 const here = dirname(fileURLToPath(import.meta.url));
 const FULL = resolve(here, "../../topolab-sdk-spec/fixtures/nl-domino-poi/full.geojson");
 
+// The server has no link route: it answers POST .../exports as staging did on
+// 2026-11-24, so download() and downloadArchive() fall back to the old routes
+// these tests pin. `paths` records the old-route requests only.
 function withServer(body: string, paths?: string[]): Promise<{ server: Server; url: string }> {
   return new Promise((res) => {
     const server = createServer((req, response) => {
-      paths?.push(req.url ?? "");
+      const path = req.url ?? "";
+      if (req.method === "POST" && path.endsWith("/exports")) {
+        response.statusCode = 404;
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ path, method: "POST", code: 404, message: `Cannot POST ${path}` }));
+        return;
+      }
+      paths?.push(path);
       response.setHeader("content-type", "application/geo+json");
       response.end(body);
     });

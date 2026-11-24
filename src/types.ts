@@ -112,8 +112,9 @@ export interface CoordinateRow {
   latitude: string;
   /** Decimal string; see `latitude`. */
   longitude: string;
-  /** Attribute bag. Advanced-tier fields (email, phone, website, hours,
-   *  services) are present only for organizations entitled to high-value data. */
+  /** Attribute bag. Columns marked Advanced on the dataset page are present
+   *  only for organizations with Advanced columns for that dataset (the Team
+   *  and Enterprise plans). */
   metadata: Record<string, unknown>;
 }
 /** A page of coordinate rows. The paging facts arrive as response headers

@@ -96,9 +96,9 @@ page.rows[0].latitude; // "51.49638600" — a decimal string, never coerced to a
 `latitude` and `longitude` arrive as strings and are kept as strings; parsing
 them would silently drop precision the API preserves. `limit` maxes out at
 50000, and omitting both parameters returns the whole dataset in one response
-(capped at the same 50000 rows). Advanced-tier attributes (email, phone,
-website, hours, services) appear only if your organization is entitled to
-high-value data for that dataset.
+(capped at the same 50000 rows). Columns marked Advanced on the dataset page
+appear only if your organization has Advanced columns for that dataset (the
+Team and Enterprise plans).
 
 ## SQL across the datasets you licence (Enterprise)
 
@@ -176,6 +176,33 @@ const ctrl = new AbortController();
 await download(tl.dataset("nl-domino-poi"), "out.geojson", { signal: ctrl.signal });
 ```
 
+### How `download` and `downloadArchive` fetch a file
+
+Both ask the link route, `POST /v1/dataset/{table}/exports`, for a signed link
+to the file: `download` asks for the current month's file as it is
+(`{ format, bundle: "file" }`), `downloadArchive` for one month's zip
+(`{ format, month, bundle: "zip" }`). The link is valid for 10 minutes and is
+fetched with a plain `fetch` that sends neither `X-API-Key` nor `Accept`, so
+the key never reaches the storage host.
+
+- **Ready (200):** the file is fetched from the link and written to `path`.
+- **Preparing (202):** the SDK waits the `retryAfterSeconds` the server names
+  (at least 1 second; 5 seconds when it names none) and asks again. Waiting
+  costs no credits. After 30 minutes it stops and throws a `ServerError` with
+  `code === "FILE_PREPARING"` and the build id in `details.build`; the build
+  keeps going on the server, so a later call finds the file ready. An
+  `AbortSignal` also ends the wait.
+- **Failed:** the server answers 503 with `code === "FILE_BUILD_FAILED"`. It is
+  retried like any 503 and then thrown as a `ServerError`.
+- **No link route (404 or 405):** a server that does not have the link route
+  yet gets today's request instead, `GET .../files/{format}` or
+  `GET .../archives/{month}/{format}`, with the same retries as before. This is
+  decided on every call; nothing is remembered between calls.
+- **Any other error** (402, 403, 5xx, ...) is thrown as it was before; it never
+  falls back to the old route.
+
+`sample()` and `toGeoJSON()` are unchanged.
+
 ## Stream one archive to disk (Node only)
 
 ```ts
@@ -191,6 +218,6 @@ await downloadArchive(tl.dataset("nl-domino-poi"), "archives/2026-07.zip", {
 });
 ```
 
-Like `download`, it creates the destination directory if missing and accepts an
-`AbortSignal`. The archive arrives as a zip (gzip when the stored object is
-gzipped), so name the destination accordingly.
+Like `download`, it fetches through the link route, creates the destination
+directory if missing and accepts an `AbortSignal`. The archive arrives as a
+zip, so name the destination accordingly.
