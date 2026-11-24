@@ -17,10 +17,13 @@
   403 and 5xx answers from the link route are thrown, never a fallback.
 - An error while fetching the signed link is thrown with the class of its status
   and a message that does not repeat the storage host's body.
+- A connection error or timeout on the signed fetch never carries the link's
+  query (its signature), also where a runtime's `fetch` quotes the URL in its
+  own error.
 - `sample()` and `toGeoJSON()` are unchanged.
 - The docs no longer mention a gzip archive: archives are zips.
 - Tier words: the coordinate rows' `metadata` doc says "columns marked Advanced
-  on the dataset page" instead of naming high-value fields.
+  on the dataset page" instead of naming high-value fields, and names no plan.
 - `docs/errors.md` lists `FILE_PREPARING`, `FILE_BUILD_FAILED` and
   `FILE_TOO_LARGE`.
 - The staging base URL is now `https://api.topolab.dev` (was

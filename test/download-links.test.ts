@@ -15,14 +15,17 @@ import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inspect } from "node:util";
 import { Client } from "../src/client";
 import { download, downloadArchive } from "../src/node";
 import { clock } from "../src/links";
 import {
   AccessDeniedError,
+  ConnectionError,
   InsufficientCreditsError,
   NotFoundError,
   ServerError,
+  TimeoutError,
   TopolabError,
 } from "../src/errors";
 
@@ -448,6 +451,87 @@ describe("the signed URL", () => {
 
     expect(storage.count(signedRoute)).toBe(2);
     expect(readFileSync(out("x.csv"), "utf8")).toBe(LINK_CSV);
+  });
+});
+
+describe("the signed query never reaches an error", () => {
+  // The query of a signed link is its signature: a working bearer link to the
+  // file for ten minutes. No text of an error raised on the signed fetch (its
+  // message, stack, inspected or JSON form) may carry it.
+  const QUERY_PARTS = ["X-Goog-Signature", "5f2d0c9e", "X-Goog-Credential", SIGNED_QUERY];
+  const expectNoQuery = (err: unknown) => {
+    const e = err as Error;
+    for (const text of [String(e?.message), String(e?.stack), inspect(err, { depth: 10 }), JSON.stringify(err)]) {
+      for (const part of QUERY_PARTS) expect(text).not.toContain(part);
+    }
+  };
+  const readyAt = (url: string): Reply => ({ status: 200, json: { state: "ready", url, build: BUILD } });
+
+  it("a refused connection to the storage host", async () => {
+    const closed = await mockServer({});
+    await closed.close();
+    api = await mockServer({ [LINK]: readyAt(`${closed.url}${SIGNED_PATH}?${SIGNED_QUERY}`) });
+    const ds = new Client({ apiKey: "tlb_test_key", baseUrl: api.url, maxRetries: 0 }).dataset(TABLE);
+
+    const err = await download(ds, out("x.csv"), { format: "csv" }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConnectionError);
+    expectNoQuery(err);
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it("a storage host that never answers", async () => {
+    const hang = createServer(() => {});
+    await new Promise<void>((r) => hang.listen(0, "127.0.0.1", () => r()));
+    const port = (hang.address() as { port: number }).port;
+    try {
+      api = await mockServer({ [LINK]: readyAt(`http://127.0.0.1:${port}${SIGNED_PATH}?${SIGNED_QUERY}`) });
+      const ds = new Client({ apiKey: "tlb_test_key", baseUrl: api.url, maxRetries: 0, timeout: 100 }).dataset(TABLE);
+
+      const err = await download(ds, out("x.csv"), { format: "csv" }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(TimeoutError);
+      expectNoQuery(err);
+    } finally {
+      hang.closeAllConnections();
+      await new Promise<void>((r) => hang.close(() => r()));
+    }
+  });
+
+  it("a fetch whose own error quotes the URL, as some runtimes' fetch does", async () => {
+    const { ds } = await servers((s) => ({ [LINK]: ready(s) }));
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes(SIGNED_PATH)) {
+        throw new TypeError(`fetch failed: unable to connect to ${url}`, { cause: new Error(`ECONNREFUSED ${url}`) });
+      }
+      return realFetch(input, init);
+    });
+
+    const err = await downloadArchive(ds, out("x.zip"), { month: "2026-11", format: "csv" }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConnectionError);
+    expectNoQuery(err);
+    // It still says where it failed: the host and the path.
+    expect(err.message).toContain(SIGNED_PATH);
+  });
+
+  it("an API request's error is left as fetch wrote it", async () => {
+    const { ds } = await servers(() => ({}));
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("/exports")) throw new TypeError(`fetch failed: ${url}?probe=1`);
+      return realFetch(input, init);
+    });
+    const tl = new Client({ apiKey: "tlb_test_key", baseUrl: api!.url, maxRetries: 0 });
+
+    const err = await download(tl.dataset(TABLE), out("x.csv"), { format: "csv" }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConnectionError);
+    expect(err.message).toContain("/exports?probe=1");
+    void ds;
   });
 });
 

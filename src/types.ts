@@ -113,8 +113,7 @@ export interface CoordinateRow {
   /** Decimal string; see `latitude`. */
   longitude: string;
   /** Attribute bag. Columns marked Advanced on the dataset page are present
-   *  only for organizations with Advanced columns for that dataset (the Team
-   *  and Enterprise plans). */
+   *  only for organizations with Advanced columns for that dataset. */
   metadata: Record<string, unknown>;
 }
 /** A page of coordinate rows. The paging facts arrive as response headers

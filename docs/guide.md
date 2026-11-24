@@ -97,8 +97,7 @@ page.rows[0].latitude; // "51.49638600" — a decimal string, never coerced to a
 them would silently drop precision the API preserves. `limit` maxes out at
 50000, and omitting both parameters returns the whole dataset in one response
 (capped at the same 50000 rows). Columns marked Advanced on the dataset page
-appear only if your organization has Advanced columns for that dataset (the
-Team and Enterprise plans).
+appear only if your organization has Advanced columns for that dataset.
 
 ## SQL across the datasets you licence (Enterprise)
 
