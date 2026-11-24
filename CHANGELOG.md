@@ -19,7 +19,8 @@
   and a message that does not repeat the storage host's body.
 - A connection error or timeout on the signed fetch never carries the link's
   query (its signature), also where a runtime's `fetch` quotes the URL in its
-  own error.
+  own error, and also when the storage host redirected to a second signed link:
+  the query of any URL the error quotes is removed.
 - `sample()` and `toGeoJSON()` are unchanged.
 - The docs no longer mention a gzip archive: archives are zips.
 - Tier words: the coordinate rows' `metadata` doc says "columns marked Advanced

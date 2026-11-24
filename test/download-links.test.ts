@@ -533,6 +533,82 @@ describe("the signed query never reaches an error", () => {
     expect(err.message).toContain("/exports?probe=1");
     void ds;
   });
+
+  // A storage host can redirect to a second signed link (a mirror, another
+  // bucket). Its query is a signature too, and must not reach an error either.
+  const SECOND_QUERY = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=R2KEY%2F20261203&X-Amz-Signature=c0ffee77";
+  const expectNoQueryAtAll = (err: unknown) => {
+    expectNoQuery(err);
+    const e = err as Error;
+    for (const text of [String(e?.message), String(e?.stack), inspect(err, { depth: 10 }), JSON.stringify(err)]) {
+      for (const part of ["X-Amz-Signature", "c0ffee77", "R2KEY", "?X-"]) expect(text).not.toContain(part);
+    }
+  };
+
+  it("a redirect to a second signed link on a host that cannot be reached", async () => {
+    const closed = await mockServer({});
+    await closed.close();
+    const storage = createServer((_req, res) => {
+      res.writeHead(302, { location: `${closed.url}/mirror/x.csv?${SECOND_QUERY}` });
+      res.end();
+    });
+    await new Promise<void>((r) => storage.listen(0, "127.0.0.1", () => r()));
+    const port = (storage.address() as { port: number }).port;
+    try {
+      api = await mockServer({ [LINK]: readyAt(`http://127.0.0.1:${port}${SIGNED_PATH}?${SIGNED_QUERY}`) });
+      const ds = new Client({ apiKey: "tlb_test_key", baseUrl: api.url, maxRetries: 0 }).dataset(TABLE);
+
+      const err = await download(ds, out("x.csv"), { format: "csv" }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(ConnectionError);
+      expectNoQueryAtAll(err);
+    } finally {
+      await new Promise<void>((r) => storage.close(() => r()));
+    }
+  });
+
+  it("a fetch whose own error quotes the redirect's signed link, as some runtimes' fetch does", async () => {
+    api = await mockServer({ [LINK]: readyAt(`https://storage.example${SIGNED_PATH}?${SIGNED_QUERY}`) });
+    const ds = new Client({ apiKey: "tlb_test_key", baseUrl: api.url, maxRetries: 0 }).dataset(TABLE);
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes(SIGNED_PATH)) {
+        const mirror = `https://mirror.example/x.csv?${SECOND_QUERY}`;
+        throw new TypeError(`error sending request for url (${mirror}): connection refused`);
+      }
+      return realFetch(input, init);
+    });
+
+    const err = await download(ds, out("x.csv"), { format: "csv" }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConnectionError);
+    expectNoQueryAtAll(err);
+    // It still says where it failed: the host and the path.
+    expect(err.message).toContain("https://mirror.example/x.csv");
+  });
+
+  it("a storage host that drops the connection in the middle of the file", async () => {
+    const storage = createServer((_req, res) => {
+      res.writeHead(200, { "content-length": "1000" });
+      res.write("id,location_name\n");
+      setTimeout(() => res.socket?.destroy(), 20);
+    });
+    await new Promise<void>((r) => storage.listen(0, "127.0.0.1", () => r()));
+    const port = (storage.address() as { port: number }).port;
+    try {
+      api = await mockServer({ [LINK]: readyAt(`http://127.0.0.1:${port}${SIGNED_PATH}?${SIGNED_QUERY}`) });
+      const ds = new Client({ apiKey: "tlb_test_key", baseUrl: api.url, maxRetries: 0 }).dataset(TABLE);
+
+      const err = await download(ds, out("x.csv"), { format: "csv" }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(Error);
+      expectNoQuery(err);
+    } finally {
+      storage.closeAllConnections();
+      await new Promise<void>((r) => storage.close(() => r()));
+    }
+  });
 });
 
 describe("sample() is unchanged", () => {

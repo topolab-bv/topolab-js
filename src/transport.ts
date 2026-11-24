@@ -149,12 +149,18 @@ async function signedLinkError(resp: Response): Promise<TopolabError> {
   return err;
 }
 
-/** `text` without any copy of a signed link's query. The query is the link's
- *  signature, a working bearer link to the file for ten minutes, so it never
- *  goes into an error, which programs log; some runtimes' fetch quotes the URL
- *  in its error. */
+/** The query of any absolute URL quoted in a text: from the "?" up to the next
+ *  space or quote, leaving punctuation that closes the sentence (a ")" after
+ *  the URL) in place. */
+const URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"'<>]*)\?[^\s"'<>]*?(?=[)\]}>,;.:!]*(?:[\s"'<>]|$))/gi;
+
+/** `text` without any copy of a signed link's query, and without the query of
+ *  any other URL it quotes (a redirect from the storage host can lead to a
+ *  second signed link). The query is the link's signature, a working bearer
+ *  link to the file for ten minutes, so it never goes into an error, which
+ *  programs log; some runtimes' fetch quotes the URL in its error. */
 function withoutQuery(text: string, queries: string[]): string {
   let out = text;
   for (const q of queries) out = out.split(`?${q}`).join("").split(q).join("[query removed]");
-  return out;
+  return out.replace(URL_QUERY, "$1");
 }
