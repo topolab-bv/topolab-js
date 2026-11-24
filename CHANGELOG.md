@@ -2,6 +2,31 @@
 
 ## Unreleased
 ### Changed
+- `download()` and `downloadArchive()` (`@topolab/sdk/node`) fetch files through
+  the link route, `POST /v1/dataset/{table}/exports`: `download()` asks for the
+  current month's file (`bundle: "file"`), `downloadArchive()` for one month's
+  zip (`month`, `bundle: "zip"`). A 200 names a 10-minute signed link, fetched
+  with a plain `fetch(url)` that sends neither `X-API-Key` nor `Accept`. A 202
+  means the file is being prepared: the SDK waits `retryAfterSeconds` (at least
+  1 second, 5 when absent) and asks again, for at most 30 minutes, then throws a
+  `ServerError` with `code === "FILE_PREPARING"` and `details.build`. An
+  `AbortSignal` also ends the wait.
+- A 404 or 405 from the link route (a server without it) falls back, on that
+  call only, to the old route (`GET .../files/{format}` or
+  `GET .../archives/{month}/{format}`) with today's behaviour and retries. 402,
+  403 and 5xx answers from the link route are thrown, never a fallback.
+- An error while fetching the signed link is thrown with the class of its status
+  and a message that does not repeat the storage host's body.
+- A connection error or timeout on the signed fetch never carries the link's
+  query (its signature), also where a runtime's `fetch` quotes the URL in its
+  own error, and also when the storage host redirected to a second signed link:
+  the query of any URL the error quotes is removed.
+- `sample()` and `toGeoJSON()` are unchanged.
+- The docs no longer mention a gzip archive: archives are zips.
+- Tier words: the coordinate rows' `metadata` doc says "columns marked Advanced
+  on the dataset page" instead of naming high-value fields, and names no plan.
+- `docs/errors.md` lists `FILE_PREPARING`, `FILE_BUILD_FAILED` and
+  `FILE_TOO_LARGE`.
 - The staging base URL is now `https://api.topolab.dev` (was
   `https://api-staging.topolab.nl`). `environment: "staging"` resolves to it.
 

@@ -125,6 +125,11 @@ await download(tl.dataset("nl-domino-poi"), "dominos-nl.geojson", { format: "geo
 filesystem — the core entry point stays browser-safe. `downloadArchive` lives
 there for the same reason.
 
+Both fetch the file through a 10-minute signed link that is requested with your
+key and fetched without it. On a server without the link route they use the old
+routes, decided on every call. See
+[the guide](docs/guide.md#how-download-and-downloadarchive-fetch-a-file).
+
 ### List what you licence
 
 ```ts

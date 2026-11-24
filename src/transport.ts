@@ -1,4 +1,4 @@
-import { errorFromResponse, retryAfterSeconds, ConnectionError, TimeoutError } from "./errors";
+import { errorFromResponse, retryAfterSeconds, ConnectionError, TimeoutError, type TopolabError } from "./errors";
 
 const VERSION = "0.2.1";
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -74,6 +74,30 @@ export class Transport {
     const payload = init.json === undefined ? undefined : JSON.stringify(init.json);
     const headers =
       payload === undefined ? this.headers : { ...this.headers, "Content-Type": "application/json" };
+    return this.send(url, { method, headers, body: payload }, signal, errorFromResponse);
+  }
+
+  /** GET a signed link. A signed link carries its own authorisation, so this is
+   *  a plain fetch: no API key, no Accept, no header of ours. Retries, timeout
+   *  and cancellation follow the same rules as every other request. */
+  async fetchSigned(url: string, signal?: AbortSignal): Promise<Response> {
+    const target = new URL(url, this.baseUrl + "/");
+    const queries = [...new Set([target.search.slice(1), url.split("?").slice(1).join("?").split("#")[0]])]
+      .filter((q) => q.length > 0)
+      .sort((a, b) => b.length - a.length);
+    return this.send(target, { method: "GET" }, signal, signedLinkError, (text) => withoutQuery(text, queries));
+  }
+
+  /** `describe` writes the message of an error raised before any answer from
+   *  the error's own message. */
+  private async send(
+    url: URL,
+    init: { method: string; headers?: Record<string, string>; body?: string },
+    signal: AbortSignal | undefined,
+    toError: (resp: Response) => Promise<TopolabError>,
+    describe: (message: string) => string = (message) => message,
+  ): Promise<Response> {
+    const { method, headers, body: payload } = init;
     let last: Response | undefined;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const ctrl = new AbortController();
@@ -95,7 +119,7 @@ export class Transport {
         if (attempt >= this.maxRetries) {
           throw timedOut
             ? new TimeoutError(`request timed out after ${this.timeout}ms`)
-            : new ConnectionError((e as Error).message);
+            : new ConnectionError(describe(String((e as Error)?.message)));
         }
         await sleep(await this.delay(attempt));
         continue;
@@ -108,9 +132,35 @@ export class Transport {
         await sleep(await this.delay(attempt, resp));
         continue;
       }
-      if (resp.status >= 400) throw await errorFromResponse(resp);
+      if (resp.status >= 400) throw await toError(resp);
       return resp;
     }
-    throw await errorFromResponse(last as Response);
+    throw await toError(last as Response);
   }
+}
+
+/** The error for a failed signed-link fetch. The class follows the status as
+ *  everywhere else; the message never repeats the storage host's body, which
+ *  can quote the link's signature. */
+async function signedLinkError(resp: Response): Promise<TopolabError> {
+  const err = await errorFromResponse(resp);
+  err.message = `Fetching the file from its signed link failed with HTTP ${resp.status}. Call again for a new link.`;
+  err.body = undefined;
+  return err;
+}
+
+/** The query of any absolute URL quoted in a text: from the "?" up to the next
+ *  space or quote, leaving punctuation that closes the sentence (a ")" after
+ *  the URL) in place. */
+const URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"'<>]*)\?[^\s"'<>]*?(?=[)\]}>,;.:!]*(?:[\s"'<>]|$))/gi;
+
+/** `text` without any copy of a signed link's query, and without the query of
+ *  any other URL it quotes (a redirect from the storage host can lead to a
+ *  second signed link). The query is the link's signature, a working bearer
+ *  link to the file for ten minutes, so it never goes into an error, which
+ *  programs log; some runtimes' fetch quotes the URL in its error. */
+function withoutQuery(text: string, queries: string[]): string {
+  let out = text;
+  for (const q of queries) out = out.split(`?${q}`).join("").split(q).join("[query removed]");
+  return out.replace(URL_QUERY, "$1");
 }
